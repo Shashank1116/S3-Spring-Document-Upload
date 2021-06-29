@@ -20,6 +20,8 @@ public class AmazonConfig {
     @Value("${aws.secret}")
     private String secret;
 
+    @Value("${aws.region}")
+
     @Bean
     public AmazonS3 s3() {
         AWSCredentials

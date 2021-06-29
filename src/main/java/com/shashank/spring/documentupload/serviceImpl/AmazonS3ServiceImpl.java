@@ -2,49 +2,57 @@ package com.shashank.spring.documentupload.serviceImpl;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.*;
+import com.amazonaws.services.s3.model.DeleteObjectRequest;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.util.IOUtils;
+
 import com.shashank.spring.documentupload.config.BucketName;
+import com.shashank.spring.documentupload.exception.ObjectNotFoundException;
+import com.shashank.spring.documentupload.service.FileService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.swing.text.html.Option;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
-import java.util.function.BiConsumer;
 
 @Service
-public class FileStore {
+public class AmazonS3ServiceImpl implements FileService {
     private final AmazonS3 amazonS3;
 
+
+
+
     @Autowired
-    FileStore(AmazonS3 amazonS3){
+    AmazonS3ServiceImpl(AmazonS3 amazonS3){
         this.amazonS3 = amazonS3;
+
     }
 
-    public String upload(MultipartFile file,String path)  throws IllegalStateException{
+    public String upload(MultipartFile file,String path,String uniqueIdentifier)  throws IllegalStateException{
 
         String bucketPath = String.format("%s", BucketName.SHASHANK.getBucketName());
 
-
+        String fileName = file.getOriginalFilename();
+        String fileUrl =  path+"/"+ uniqueIdentifier+"_"+fileName;
         Map<String, String> metaData = new HashMap<>();
         metaData.put("Content-Type",file.getContentType());
         metaData.put("Content-Length",String.valueOf(file.getSize()));
-        String filePath = path+"/"+file.getOriginalFilename();
+
         ObjectMetadata objectMetadata = new ObjectMetadata();
         metaData.forEach(objectMetadata::addUserMetadata);
 
         try {
-             amazonS3.putObject(bucketPath, path, file.getInputStream(), objectMetadata);
+             amazonS3.putObject(bucketPath, fileUrl, file.getInputStream(), objectMetadata);
         } catch (AmazonServiceException | IOException exception) {
             throw new IllegalStateException("Failed to upload the file", exception);
         }
 
-        return bucketPath+"/"+path;
+        return fileUrl;
 
     }
 
@@ -57,5 +65,17 @@ public class FileStore {
             throw new IllegalStateException("Failed to download the file", e);
         }
     }
+
+    @Override
+    public void delete(String path) throws ObjectNotFoundException {
+        try {
+            final DeleteObjectRequest deleteObjectRequest = new DeleteObjectRequest(BucketName.SHASHANK.getBucketName(), path);
+            amazonS3.deleteObject(deleteObjectRequest);
+
+        }catch (AmazonServiceException exception){
+            throw new ObjectNotFoundException("Resource not found", HttpStatus.NOT_FOUND);
+        }
+    }
+
 
 }
